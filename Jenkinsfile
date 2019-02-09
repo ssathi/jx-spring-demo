@@ -14,7 +14,7 @@ pipeline {
       }
       steps {
         container('maven') {
-          sh "jx step split monorepo -o myorg --glob "spring-*""
+          sh "jx step split monorepo -o ssathi --glob spring-* "
         }
       }
     }
