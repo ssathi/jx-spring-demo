@@ -8,6 +8,8 @@ public class SpringService1Application {
 
 	public static void main(String[] args) {
 		SpringApplication.run(SpringService1Application.class, args);
+
+		// new test commit
 	}
 
 }
