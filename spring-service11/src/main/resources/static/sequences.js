@@ -1,6 +1,6 @@
 // Dimensions of sunburst.
-var width = 750;
-var height = 600;
+var width = 1050;
+var height = 900;
 var radius = Math.min(width, height) / 2;
 
 // Breadcrumb dimensions: width, height, spacing, width of tip/tail.
@@ -9,14 +9,11 @@ var b = {
 };
 
 // Mapping of step names to colors.
-var colors = {
-  "home": "#5687d1",
-  "product": "#7b615c",
-  "search": "#de783b",
-  "account": "#6ab975",
-  "other": "#a173d1",
-  "end": "#bbbbbb"
-};
+var colors = [
+  "#1ae4ff",
+    "#cc6699",
+  "#5687d1"
+];
 
 // Total size of all segments; we set this later, after loading the data.
 var totalSize = 0; 
@@ -31,17 +28,21 @@ var vis = d3.select("#chart").append("svg:svg")
 var partition = d3.partition()
     .size([2 * Math.PI, radius * radius]);
 
+var initialRadius = 80;
+var arcRadius = radius - initialRadius;
+
 var arc = d3.arc()
     .startAngle(function(d) { return d.x0; })
     .endAngle(function(d) { return d.x1; })
-    .innerRadius(function(d) { return Math.sqrt(d.y0); })
-    .outerRadius(function(d) { return Math.sqrt(d.y1); });
+    .innerRadius(function(d) { return initialRadius + arcRadius - (arcRadius*(3- d.depth)/3); })
+    .outerRadius(function(d) { return initialRadius + arcRadius - (arcRadius*(3- d.depth+1)/3); });
 
 // Use d3.text and d3.csvParseRows so that we do not need to have a header
 // row, and can receive the csv as an array of arrays.
-d3.text("visit-sequences.csv", function(text) {
+d3.text("charactor.csv", function(text) {
   var csv = d3.csvParseRows(text);
   var json = buildHierarchy(csv);
+  console.log(JSON.stringify(json));
   createVisualization(json);
 });
 
@@ -70,15 +71,43 @@ function createVisualization(json) {
           return (d.x1 - d.x0 > 0.005); // 0.005 radians = 0.29 degrees
       });
 
-  var path = vis.data([json]).selectAll("path")
-      .data(nodes)
-      .enter().append("svg:path")
+    var gSlices = vis.selectAll("g").data([json])
+        .data(nodes)
+        .enter()
+        .append("svg:g");
+
+  var path = gSlices.append("svg:path")
       .attr("display", function(d) { return d.depth ? null : "none"; })
       .attr("d", arc)
       .attr("fill-rule", "evenodd")
-      .style("fill", function(d) { return colors[d.data.name]; })
+      .style("fill", function(d) { return colors[d.depth-1] })
       .style("opacity", 1)
+      .on("click", function (d) {
+          d3.select("#clicked")
+              .text(d.data.name);
+      })
       .on("mouseover", mouseover);
+
+    gSlices.append('text')
+        .attr('dy', '.35em')
+        .text(function (d) { return d.parent ? d.data.name : '' })
+        .attr('id', function (d) { return 'w' + d.data.name })
+        .attr('fill', '#000000');
+
+    vis.selectAll('text')
+        .transition('update')
+        .duration(750)
+        .attrTween('transform', function (d) { return arcTweenText(d)})
+        .attr('text-anchor', function (d) {
+            return d.textAngle > 180 ? 'start' : 'end'
+        })
+        .attr('dx', function (d) {
+            return d.textAngle > 180 ? 27: 27
+        })
+        .attr('opacity', function (e) {
+            return e.x1 - e.x0 > 0.01 ? 1 : 0
+        });
+
 
   // Add the mouseleave handler to the bounding circle.
   d3.select("#container").on("mouseleave", mouseleave);
@@ -295,4 +324,19 @@ function buildHierarchy(csv) {
     }
   }
   return root;
-};
+}
+
+function arcTweenText(a) {
+    var oi = d3.interpolate({ x0: (a.x0s ? a.x0s : 0), x1: (a.x1s ? a.x1s : 0), y0: (a.y0s ? a.y0s : 0), y1: (a.y1s ? a.y1s : 0) }, a);
+
+    function tween(t) {
+        var b = oi(t);
+        var ang = ((((b.x0 + b.x1) / 2) - Math.PI / 2) / Math.PI * 180);
+
+        b.textAngle = (ang > 90) ? 180 + ang : ang;
+        a.centroid = arc.centroid(b);
+
+        return 'translate(' + arc.centroid(b) + ')rotate(' + b.textAngle + ')'
+    }
+    return tween
+}
